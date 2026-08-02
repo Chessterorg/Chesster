@@ -10,6 +10,7 @@ interface WalletState {
   address: string | null;
   isConnected: boolean;
   connect: () => Promise<void>;
+  disconnect: () => void;
   checkConnection: () => Promise<void>;
 }
 
@@ -27,6 +28,9 @@ export const useWalletStore = create<WalletState>((set) => ({
     } catch (error) {
       console.error("Failed to connect Freighter:", error);
     }
+  },
+  disconnect: () => {
+    set({ address: null, isConnected: false });
   },
   checkConnection: async () => {
     try {

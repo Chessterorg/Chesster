@@ -51,7 +51,7 @@ export default function GamePage() {
 		joinGame,
 	} = useGameStore();
 	const { addToast } = useToastStore();
-	const { address, isConnected, connect } = useWalletStore();
+	const { address, isConnected, connect, disconnect } = useWalletStore();
 
 	const [gameInfo, setGameInfo] = useState<GameInfo | null>(null);
 	const [fetchingInfo, setFetchingInfo] = useState(true);
@@ -147,8 +147,13 @@ export default function GamePage() {
 		<div className="flex flex-col items-center justify-center h-svh overflow-hidden gap-6 bg-(--bg) p-4">
 			<div className="absolute top-4 right-4">
 				{isConnected ? (
-                    <div className="text-sm font-mono bg-(--bg-secondary) px-3 py-1.5 rounded-lg border border-(--border)">
-                        {address?.slice(0, 4)}...{address?.slice(-4)}
+                    <div className="flex items-center gap-3">
+                        <div className="text-sm font-mono bg-(--bg-secondary) px-3 py-1.5 rounded-lg border border-(--border)">
+                            {address?.slice(0, 4)}...{address?.slice(-4)}
+                        </div>
+                        <button onClick={disconnect} className="text-xs text-(--text-tertiary) hover:text-(--text) transition-colors underline underline-offset-2">
+                            Disconnect
+                        </button>
                     </div>
                 ) : (
                     <button onClick={connect} className="bg-(--accent-dark) hover:bg-(--accent-primary) px-4 py-1.5 rounded-lg text-sm font-bold transition-colors">
