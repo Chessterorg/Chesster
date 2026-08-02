@@ -229,7 +229,7 @@ class GameModel {
 
 	/**
 	 * Resolve on-chain escrow for a finished game.
-	 * Players deposit ETH directly via the frontend, so we only need to call
+	 * Players deposit XLM directly via the frontend, so we only need to call
 	 * resolveMatch (coordinator role). Checks on-chain state first.
 	 *
 	 * @param {string} gameCode - human-readable game code
@@ -272,7 +272,7 @@ class GameModel {
 
 		// ── 4. Match is PENDING (player2 never deposited) — can't resolve ────
 		if (chainStatus === ON_CHAIN_STATUS.PENDING) {
-			console.error(`[Escrow] ${gameCode} is PENDING on-chain — player2 never deposited ETH`);
+			console.error(`[Escrow] ${gameCode} is PENDING on-chain — player2 never deposited XLM`);
 			await supabase.from("games").update({ escrow_status: "failed" }).eq("game_code", gameCode);
 			return;
 		}
@@ -310,7 +310,7 @@ class GameModel {
 		} catch (resolveErr) {
 			console.error(`[Escrow] resolveMatch FAILED for ${gameCode}:`, resolveErr.message);
 			// Re-check on-chain: another concurrent _settleEscrow call may have already
-			// resolved the match (race condition during Sepolia block confirmation).
+			// resolved the match (race condition during Stellar ledger confirmation).
 			try {
 				const recheck = await escrowService.getMatch(gameCode);
 				if (recheck.status === ON_CHAIN_STATUS.RESOLVED) {

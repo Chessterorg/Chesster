@@ -2,24 +2,10 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useGameStore } from "../store/gameStore";
 import { useToastStore } from "../store/toastStore";
-import {
-	AppKitButton,
-	useAppKitAccount,
-	useAppKitProvider,
-} from "@reown/appkit/react";
-import { ethers } from "ethers";
+import { useWalletStore } from "../store/walletStore";
 import { api } from "../api/gameApi";
 import { Clock, Users, ChevronRight } from "lucide-react";
-
-const ESCROW_ADDRESS = import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS || "";
-const BACKEND_URL =
-	import.meta.env.VITE_BACKEND_URL || "http://localhost:3000/";
-
-// Minimal ABI for the ETH escrow — players call these directly
-const ESCROW_ETH_ABI = [
-	"function createMatch(bytes32 gameCode) external payable",
-	"function joinMatch(bytes32 gameCode) external payable",
-];
+import { depositXLM } from "../services/stellarService";
 
 // ── Time control options ───────────────────────────────────────────────────────
 const TIME_CONTROLS = [
@@ -111,14 +97,14 @@ function LoadingOverlay({
 		},
 		depositing: {
 			title: "Confirm in wallet\u2026",
-			sub: "Send ETH to the escrow contract",
+			sub: "Send XLM to the escrow contract",
 		},
 		fetching: { title: "Checking game\u2026" },
 		joining: {
 			title: wagerEnabled
 				? "Joining game on-chain\u2026"
 				: "Joining game\u2026",
-			sub: wagerEnabled ? "Locking ETH into escrow contract" : undefined,
+			sub: wagerEnabled ? "Locking XLM into escrow contract" : undefined,
 		},
 	};
 
@@ -183,9 +169,6 @@ function WagerConfirmPanel({
 }) {
 	return (
 		<div className="h-svh w-screen flex flex-col items-center justify-center bg-(--bg) p-4">
-			<div className="absolute top-4 right-4">
-				<AppKitButton />
-			</div>
 			<div className="w-full max-w-xs bg-(--bg-secondary) border border-(--border) rounded-2xl p-5 flex flex-col gap-4 shadow-xl">
 				<div className="text-center flex flex-col gap-1">
 					<div className="text-3xl mb-1">&#9888;&#65039;</div>
@@ -196,7 +179,7 @@ function WagerConfirmPanel({
 					<p className="text-2xl font-bold">
 						{info.wagerAmount}{" "}
 						<span className="text-base font-semibold text-(--text-secondary)">
-							ETH
+							XLM
 						</span>
 					</p>
 				</div>
@@ -204,7 +187,7 @@ function WagerConfirmPanel({
 				<div className="bg-(--bg) rounded-xl p-3 flex flex-col gap-1 text-xs text-(--text-tertiary)">
 					<p>&#8226; Winner takes the pot</p>
 					<p>&#8226; Draws refund both players in full</p>
-					<p>&#8226; Your wallet will ask to confirm the ETH transfer</p>
+					<p>&#8226; Your wallet will ask to confirm the XLM transfer</p>
 				</div>
 
 				<button
@@ -218,7 +201,7 @@ function WagerConfirmPanel({
 							Depositing&#8230;
 						</>
 					) : (
-						"Send ETH & Join"
+						"Send XLM & Join"
 					)}
 				</button>
 				<button
@@ -302,7 +285,7 @@ function PendingGamesList({
 										<>
 											<span>&#183;</span>
 											<span className="text-yellow-400 font-semibold">
-												{g.wager_amount} ETH
+												{g.wager_amount} XLM
 											</span>
 										</>
 									)}
@@ -341,35 +324,10 @@ export default function GameLobby() {
 	const { createGame, joinGame } = useGameStore();
 	const { addToast } = useToastStore();
 	const navigate = useNavigate();
-	const { address, isConnected } = useAppKitAccount();
-	const { walletProvider } = useAppKitProvider("eip155");
+	const { address, isConnected, connect } = useWalletStore();
 
 	const isLoading = step !== "idle";
-
-	// ── Deposit ETH to escrow contract ────────────────────────────────────────
-	const depositETH = async (
-		fnName: "createMatch" | "joinMatch",
-		code: string,
-		amount: string,
-	) => {
-		if (!walletProvider) throw new Error("Wallet not connected");
-		if (!ESCROW_ADDRESS)
-			throw new Error(
-				"Escrow contract address not configured (set VITE_ESCROW_CONTRACT_ADDRESS)",
-			);
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const provider = new ethers.BrowserProvider(walletProvider as any);
-		const signer = await provider.getSigner();
-		const contract = new ethers.Contract(
-			ESCROW_ADDRESS,
-			ESCROW_ETH_ABI,
-			signer,
-		);
-		const tx = await contract[fnName](ethers.id(code), {
-			value: ethers.parseEther(amount),
-		});
-		await tx.wait();
-	};
+    const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000/";
 
 	// ── Create game ───────────────────────────────────────────────────────────
 	const handleCreateGame = async () => {
@@ -383,17 +341,7 @@ export default function GameLobby() {
 				addToast("Enter a valid wager amount", "error");
 				return;
 			}
-			if (!ESCROW_ADDRESS) {
-				addToast(
-					"Escrow contract address not configured (set VITE_ESCROW_CONTRACT_ADDRESS)",
-					"error",
-				);
-				return;
-			}
 
-			// Generate game code client-side so we can do the on-chain deposit
-			// BEFORE writing to the DB — the game only appears in the lobby after
-			// the transaction is confirmed.
 			const preGeneratedCode = Math.random()
 				.toString(36)
 				.substring(2, 8)
@@ -401,10 +349,10 @@ export default function GameLobby() {
 
 			setStep("depositing");
 			try {
-				await depositETH("createMatch", preGeneratedCode, wagerAmount);
+				await depositXLM("create_match", preGeneratedCode, wagerAmount, address);
 			} catch (err: unknown) {
 				setStep("idle");
-				const msg = err instanceof Error ? err.message : "ETH deposit failed";
+				const msg = err instanceof Error ? err.message : "XLM deposit failed";
 				addToast(
 					msg.includes("rejected") || msg.includes("denied")
 						? "Deposit cancelled"
@@ -414,7 +362,6 @@ export default function GameLobby() {
 				return;
 			}
 
-			// Transaction confirmed — now persist the game to the DB.
 			setStep("creating");
 			try {
 				const data = await api.createGame(
@@ -502,16 +449,16 @@ export default function GameLobby() {
 
 	const handleJoinGame = () => handleJoinByCode(gameCode);
 
-	// ── Deposit ETH & join (after wager confirmation) ─────────────────────────
+	// ── Deposit XLM & join (after wager confirmation) ─────────────────────────
 	const handleDepositAndJoin = async () => {
 		if (!pendingWager || !address) return;
 
 		setStep("depositing");
 		try {
-			await depositETH("joinMatch", gameCode, pendingWager.wagerAmount);
+			await depositXLM("join_match", gameCode, pendingWager.wagerAmount, address);
 		} catch (err: unknown) {
 			setStep("join-confirming");
-			const msg = err instanceof Error ? err.message : "ETH deposit failed";
+			const msg = err instanceof Error ? err.message : "XLM deposit failed";
 			addToast(
 				msg.includes("rejected") || msg.includes("denied")
 					? "Deposit cancelled"
@@ -571,7 +518,15 @@ export default function GameLobby() {
 						? "Create or join a game below"
 						: "Connect your wallet to play on-chain chess"}
 				</p>
-				<AppKitButton />
+				{isConnected ? (
+                    <div className="text-sm font-mono bg-(--bg-secondary) px-3 py-1.5 rounded-lg border border-(--border)">
+                        {address?.slice(0, 4)}...{address?.slice(-4)}
+                    </div>
+                ) : (
+                    <button onClick={connect} className="bg-(--accent-dark) hover:bg-(--accent-primary) px-4 py-1.5 rounded-lg text-sm font-bold transition-colors">
+                        Connect Freighter
+                    </button>
+                )}
 			</header>
 
 			{/* ── Centered body ── */}
@@ -650,15 +605,15 @@ export default function GameLobby() {
 								<div className="relative">
 									<input
 										type="number"
-										placeholder="e.g. 0.01"
+										placeholder="e.g. 10"
 										value={wagerAmount}
 										min="0"
-										step="0.001"
+										step="1"
 										onChange={(e) => setWagerAmount(e.target.value)}
 										className="w-full px-3 py-2 pr-14 text-sm border border-(--border) rounded-lg bg-(--bg-secondary) text-(--text) placeholder:text-(--text-tertiary) outline-none focus:ring-2 focus:ring-(--accent-primary)"
 									/>
 									<span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-(--text-tertiary) pointer-events-none">
-										ETH
+										XLM
 									</span>
 								</div>
 								<p className="text-xs text-(--text-tertiary) leading-relaxed">
@@ -687,7 +642,7 @@ export default function GameLobby() {
 									Confirm in wallet&#8230;
 								</>
 							) : wagerEnabled ? (
-								"Create Game & Wager ETH"
+								"Create Game & Wager XLM"
 							) : (
 								"Create New Game"
 							)}

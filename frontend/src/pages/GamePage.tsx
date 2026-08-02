@@ -2,34 +2,18 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useGameStore } from "../store/gameStore";
 import { useToastStore } from "../store/toastStore";
-import {
-	useAppKitAccount,
-	useAppKitProvider,
-	AppKitButton,
-} from "@reown/appkit/react";
-import { ethers } from "ethers";
+import { useWalletStore } from "../store/walletStore";
 import ChessBoard from "../components/ChessBoard";
-
-const WETH_SEPOLIA = "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14";
-const ESCROW_ADDRESS = import.meta.env.VITE_ESCROW_CONTRACT_ADDRESS || "";
-const ERC20_APPROVE_ABI = [
-	"function approve(address spender, uint256 amount) returns (bool)",
-];
-
-function tokenLabel(addr: string): string {
-	if (addr.toLowerCase() === WETH_SEPOLIA.toLowerCase()) return "WETH";
-	return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-}
+import { depositXLM } from "../services/stellarService";
 
 interface GameInfo {
 	wager_amount?: number | null;
-	token_address?: string | null;
 	status?: string;
 	player_white?: boolean;
 	player_black?: boolean;
 }
 
-type JoinStep = "idle" | "approving" | "joining";
+type JoinStep = "idle" | "depositing" | "joining";
 
 function Spinner({ size = 16 }: { size?: number }) {
 	return (
@@ -67,8 +51,7 @@ export default function GamePage() {
 		joinGame,
 	} = useGameStore();
 	const { addToast } = useToastStore();
-	const { address, isConnected } = useAppKitAccount();
-	const { walletProvider } = useAppKitProvider("eip155");
+	const { address, isConnected, connect } = useWalletStore();
 
 	const [gameInfo, setGameInfo] = useState<GameInfo | null>(null);
 	const [fetchingInfo, setFetchingInfo] = useState(true);
@@ -105,22 +88,11 @@ export default function GamePage() {
 		fetchInfo();
 	}, [gameCode, storedGameCode, playerColor, rejoinGame, navigate]);
 
-	const hasWager = !!(gameInfo?.wager_amount && gameInfo?.token_address);
+	const hasWager = !!gameInfo?.wager_amount;
 	const wagerAmount = gameInfo?.wager_amount;
-	const tokenAddr = gameInfo?.token_address || "";
 	const potentialWinnings = wagerAmount
 		? (parseFloat(String(wagerAmount)) * 2 * 0.95).toFixed(6)
 		: null;
-
-	const approveToken = async (tokenAddress: string, amount: string) => {
-		if (!walletProvider) throw new Error("Wallet not connected");
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const provider = new ethers.BrowserProvider(walletProvider as any);
-		const signer = await provider.getSigner();
-		const token = new ethers.Contract(tokenAddress, ERC20_APPROVE_ABI, signer);
-		const tx = await token.approve(ESCROW_ADDRESS, ethers.parseEther(amount));
-		await tx.wait();
-	};
 
 	const handleJoin = async () => {
 		if (!gameCode) return;
@@ -129,20 +101,16 @@ export default function GamePage() {
 			return;
 		}
 
-		// Wagered game: approve tokens first
+		// Wagered game: deposit XLM first
 		if (hasWager && wagerAmount) {
-			if (!ESCROW_ADDRESS) {
-				addToast("Escrow contract not configured", "error");
-				return;
-			}
-			setJoinStep("approving");
+			setJoinStep("depositing");
 			try {
-				await approveToken(tokenAddr, String(wagerAmount));
+				await depositXLM("join_match", gameCode, String(wagerAmount), address);
 			} catch (err: unknown) {
 				setJoinStep("idle");
-				const msg = err instanceof Error ? err.message : "Approval failed";
+				const msg = err instanceof Error ? err.message : "Deposit failed";
 				addToast(
-					msg.includes("rejected") ? "Approval cancelled" : msg,
+					msg.includes("rejected") ? "Deposit cancelled" : msg,
 					"error",
 				);
 				return;
@@ -178,7 +146,15 @@ export default function GamePage() {
 	return (
 		<div className="flex flex-col items-center justify-center h-svh overflow-hidden gap-6 bg-(--bg) p-4">
 			<div className="absolute top-4 right-4">
-				<AppKitButton />
+				{isConnected ? (
+                    <div className="text-sm font-mono bg-(--bg-secondary) px-3 py-1.5 rounded-lg border border-(--border)">
+                        {address?.slice(0, 4)}...{address?.slice(-4)}
+                    </div>
+                ) : (
+                    <button onClick={connect} className="bg-(--accent-dark) hover:bg-(--accent-primary) px-4 py-1.5 rounded-lg text-sm font-bold transition-colors">
+                        Connect Freighter
+                    </button>
+                )}
 			</div>
 
 			<div className="w-full max-w-sm flex flex-col gap-5">
@@ -212,7 +188,7 @@ export default function GamePage() {
 								<p className="text-lg font-bold">
 									{wagerAmount}{" "}
 									<span className="text-sm font-semibold text-(--text-secondary)">
-										{tokenLabel(tokenAddr)}
+										XLM
 									</span>
 								</p>
 							</div>
@@ -221,7 +197,7 @@ export default function GamePage() {
 								<p className="text-lg font-bold text-green-400">
 									{potentialWinnings}{" "}
 									<span className="text-sm font-semibold">
-										{tokenLabel(tokenAddr)}
+										XLM
 									</span>
 								</p>
 							</div>
@@ -231,16 +207,10 @@ export default function GamePage() {
 						<div className="flex flex-col gap-0.5 text-xs text-(--text-tertiary)">
 							<p>
 								• Total pot: {(parseFloat(String(wagerAmount)) * 2).toString()}{" "}
-								{tokenLabel(tokenAddr)}
+								XLM
 							</p>
 							<p>• Winner takes the pot</p>
 							<p>• Draws refund both players in full</p>
-						</div>
-
-						{/* Token address */}
-						<div className="flex items-center gap-1.5 text-xs text-(--text-tertiary) font-mono">
-							<span className="shrink-0">Token:</span>
-							<span className="truncate">{tokenAddr}</span>
 						</div>
 					</div>
 				)}
@@ -260,7 +230,9 @@ export default function GamePage() {
 						<p className="text-sm text-(--text-secondary) text-center">
 							Connect your wallet to join this game
 						</p>
-						<AppKitButton />
+						<button onClick={connect} className="bg-(--accent-dark) hover:bg-(--accent-primary) px-4 py-2 rounded-lg text-sm font-bold transition-colors">
+                            Connect Freighter
+                        </button>
 					</div>
 				) : (
 					<button
@@ -268,16 +240,16 @@ export default function GamePage() {
 						disabled={joinStep !== "idle"}
 						className="w-full py-4 text-base font-bold rounded-2xl transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg bg-(--accent-dark) hover:bg-(--accent-primary)"
 					>
-						{joinStep === "approving" ? (
+						{joinStep === "depositing" ? (
 							<>
-								<Spinner size={16} /> Approving tokens…
+								<Spinner size={16} /> Depositing XLM…
 							</>
 						) : joinStep === "joining" ? (
 							<>
 								<Spinner size={16} /> Joining game…
 							</>
 						) : hasWager ? (
-							"Approve & Play as Black"
+							"Deposit XLM & Play as Black"
 						) : (
 							"Play as Black"
 						)}
@@ -288,14 +260,14 @@ export default function GamePage() {
 				{hasWager && joinStep !== "idle" && (
 					<div className="flex items-center justify-center gap-3 text-xs">
 						<div
-							className={`flex items-center gap-1 ${joinStep === "approving" ? "text-(--accent-primary) font-semibold" : "text-green-500"}`}
+							className={`flex items-center gap-1 ${joinStep === "depositing" ? "text-(--accent-primary) font-semibold" : "text-green-500"}`}
 						>
-							{joinStep === "approving" ? (
+							{joinStep === "depositing" ? (
 								<Spinner size={10} />
 							) : (
 								<span>✓</span>
 							)}
-							Approve
+							Deposit
 						</div>
 						<div className="w-6 h-px bg-(--border)" />
 						<div

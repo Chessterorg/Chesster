@@ -18,12 +18,12 @@ import {
 	VolumeX,
 } from "lucide-react";
 
-const WETH_SEPOLIA = "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14";
-const EXPLORER_BASE = "https://sepolia.etherscan.io/tx/";
+const NATIVE_XLM = "CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC";
+const EXPLORER_BASE = "https://stellar.expert/explorer/testnet/tx/";
 
 function tokenLabel(addr: string | null | undefined): string {
-	if (!addr) return "ETH";
-	if (addr.toLowerCase() === WETH_SEPOLIA.toLowerCase()) return "WETH";
+	if (!addr) return "XLM";
+	if (addr === NATIVE_XLM) return "XLM";
 	return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 import { useState, useMemo, useEffect, useRef } from "react";
@@ -551,7 +551,7 @@ function ChessBoardInner() {
 										className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-green-500/15 border border-green-500/30 text-green-400 hover:bg-green-500/25 transition-colors text-sm font-semibold"
 									>
 										<ExternalLink size={14} />
-										View transaction on Etherscan
+										View transaction on Stellar Expert
 									</a>
 								)}
 								<p className="text-xs text-(--text-tertiary) text-center">
