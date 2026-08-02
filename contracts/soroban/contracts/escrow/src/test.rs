@@ -1,9 +1,12 @@
 #![cfg(test)]
 
 use super::*;
-use soroban_sdk::{testutils::{Address as _, Ledger}, Address, Env, String};
 use soroban_sdk::token::Client as TokenClient;
 use soroban_sdk::token::StellarAssetClient as TokenAdminClient;
+use soroban_sdk::{
+    testutils::{Address as _, Ledger},
+    Address, Env, String,
+};
 
 fn create_token_contract<'a>(e: &Env, admin: &Address) -> (TokenClient<'a>, TokenAdminClient<'a>) {
     let contract_id = e.register_stellar_asset_contract(admin.clone());
@@ -24,7 +27,7 @@ fn test_create_and_join_match() {
     let token_admin = Address::generate(&env);
 
     let (token, token_admin_client) = create_token_contract(&env, &token_admin);
-    
+
     // Mint tokens to players
     token_admin_client.mint(&player1, &1000);
     token_admin_client.mint(&player2, &1000);
@@ -151,7 +154,7 @@ fn test_refund_after_timeout() {
     client.init(&coordinator, &500); // 5% fee
 
     let game_code = String::from_str(&env, "GAME123");
-    
+
     // Set initial timestamp
     env.ledger().with_mut(|li| {
         li.timestamp = 1000;
@@ -195,7 +198,7 @@ fn test_refund_before_timeout_fails() {
     client.init(&coordinator, &500);
 
     let game_code = String::from_str(&env, "GAME123");
-    
+
     env.ledger().with_mut(|li| {
         li.timestamp = 1000;
     });
