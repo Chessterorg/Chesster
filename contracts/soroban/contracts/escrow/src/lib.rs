@@ -159,3 +159,5 @@ impl ChessterEscrow {
         env.storage().persistent().get(&game_code).expect("Match not found")
     }
 }
+
+mod test;
