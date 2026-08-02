@@ -9,10 +9,10 @@ use soroban_sdk::{
 };
 
 fn create_token_contract<'a>(e: &Env, admin: &Address) -> (TokenClient<'a>, TokenAdminClient<'a>) {
-    let contract_id = e.register_stellar_asset_contract(admin.clone());
+    let contract_id = e.register_stellar_asset_contract_v2(admin.clone());
     (
-        TokenClient::new(e, &contract_id),
-        TokenAdminClient::new(e, &contract_id),
+        TokenClient::new(e, &contract_id.address()),
+        TokenAdminClient::new(e, &contract_id.address()),
     )
 }
 
