@@ -6,6 +6,7 @@ import { useWalletStore } from "../store/walletStore";
 import { api } from "../api/gameApi";
 import { Clock, Users, ChevronRight } from "lucide-react";
 import { depositXLM } from "../services/stellarService";
+import WalletDropdown from "./WalletDropdown";
 
 // ── Time control options ───────────────────────────────────────────────────────
 const TIME_CONTROLS = [
@@ -324,7 +325,7 @@ export default function GameLobby() {
 	const { createGame, joinGame } = useGameStore();
 	const { addToast } = useToastStore();
 	const navigate = useNavigate();
-	const { address, isConnected, connect, disconnect } = useWalletStore();
+	const { address, isConnected, connect } = useWalletStore();
 
 	const isLoading = step !== "idle";
     const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000/";
@@ -519,14 +520,7 @@ export default function GameLobby() {
 						: "Connect your wallet to play on-chain chess"}
 				</p>
 				{isConnected ? (
-                    <div className="flex items-center gap-3">
-                        <div className="text-sm font-mono bg-(--bg-secondary) px-3 py-1.5 rounded-lg border border-(--border)">
-                            {address?.slice(0, 4)}...{address?.slice(-4)}
-                        </div>
-                        <button onClick={disconnect} className="text-xs text-(--text-tertiary) hover:text-(--text) transition-colors underline underline-offset-2">
-                            Disconnect
-                        </button>
-                    </div>
+                    <WalletDropdown />
                 ) : (
                     <button onClick={connect} className="bg-(--accent-dark) hover:bg-(--accent-primary) px-4 py-1.5 rounded-lg text-sm font-bold transition-colors">
                         Connect Freighter

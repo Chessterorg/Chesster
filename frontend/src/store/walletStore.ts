@@ -3,7 +3,7 @@ import {
   isConnected,
   getAddress,
   requestAccess,
-//   signTransaction,
+  WatchWalletChanges,
 } from "@stellar/freighter-api";
 
 interface WalletState {
@@ -11,12 +11,17 @@ interface WalletState {
   isConnected: boolean;
   connect: () => Promise<void>;
   disconnect: () => void;
+  startWatching: () => void;
+  stopWatching: () => void;
   checkConnection: () => Promise<void>;
 }
 
-export const useWalletStore = create<WalletState>((set) => ({
-  address: null,
-  isConnected: false,
+export const useWalletStore = create<WalletState>((set) => {
+  let watcher: WatchWalletChanges | null = null;
+
+  return {
+    address: null,
+    isConnected: false,
   connect: async () => {
     try {
       const access = await requestAccess();
@@ -31,6 +36,22 @@ export const useWalletStore = create<WalletState>((set) => ({
   },
   disconnect: () => {
     set({ address: null, isConnected: false });
+  },
+  startWatching: () => {
+    if (!watcher) {
+      watcher = new WatchWalletChanges();
+      watcher.watch((params: any) => {
+        if (params.address) {
+          set({ address: params.address, isConnected: true });
+        }
+      });
+    }
+  },
+  stopWatching: () => {
+    if (watcher) {
+      watcher.stop();
+      watcher = null;
+    }
   },
   checkConnection: async () => {
     try {
@@ -47,4 +68,5 @@ export const useWalletStore = create<WalletState>((set) => ({
       console.error("Failed to check Freighter connection:", error);
     }
   },
-}));
+  };
+});
