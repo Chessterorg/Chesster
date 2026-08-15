@@ -6,9 +6,11 @@
 
 A fully decentralized, two-player chess game built on the Stellar network using Soroban smart contracts. Chesster features full move validation, database persistence for game state, and an on-chain escrow system for wagering tokens on matches.
 
-![Chesster](https://img.shields.io/badge/Stellar-Soroban-black?style=flat-square&logo=stellar)
+![Stellar](https://img.shields.io/badge/Stellar-Soroban-black?style=flat-square&logo=stellar)
 ![React](https://img.shields.io/badge/React-TypeScript-blue?style=flat-square&logo=react)
 ![Node.js](https://img.shields.io/badge/Node.js-Express-green?style=flat-square&logo=node.js)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](CONTRIBUTING.md)
 
 ## 🏗 Architecture
 
@@ -120,6 +122,13 @@ The project includes comprehensive test suites:
 - **Smart Contract**: `cd contracts/soroban && cargo test`
 - **Backend**: `cd backend && npm test`
 
+## 🤝 Contributing & Community
+
+We welcome contributions! Please refer to our community guides before submitting code:
+- [Contribution Guidelines](CONTRIBUTING.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security Policy](SECURITY.md)
+
 ## 📄 License
 
-This project is licensed under the MIT License.
+This project is licensed under the [MIT License](LICENSE).
