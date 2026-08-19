@@ -1,5 +1,7 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, token, Address, Env, String};
+use soroban_sdk::{
+    contract, contractimpl, contracttype, symbol_short, token, Address, Env, String,
+};
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -63,7 +65,7 @@ impl ChessterEscrow {
 
         let m = Match {
             game_code: game_code.clone(),
-            player1,
+            player1: player1.clone(),
             player2: None,
             wager_amount: amount,
             total_staked: amount,
@@ -74,6 +76,11 @@ impl ChessterEscrow {
         };
 
         env.storage().persistent().set(&game_code, &m);
+
+        env.events().publish(
+            (symbol_short!("create"), game_code.clone()),
+            (player1, amount),
+        );
     }
 
     /// Player 2 joins an existing match and deposits the wager
@@ -100,11 +107,16 @@ impl ChessterEscrow {
         let token_client = token::Client::new(&env, &m.token);
         token_client.transfer(&player2, &env.current_contract_address(), &m.wager_amount);
 
-        m.player2 = Some(player2);
+        m.player2 = Some(player2.clone());
         m.status = MatchStatus::Active;
         m.total_staked += m.wager_amount;
 
         env.storage().persistent().set(&game_code, &m);
+
+        env.events().publish(
+            (symbol_short!("join"), game_code.clone()),
+            player2,
+        );
     }
 
     /// Coordinator resolves the match
@@ -128,7 +140,7 @@ impl ChessterEscrow {
 
         let token_client = token::Client::new(&env, &m.token);
 
-        if let Some(w) = winner.clone() {
+        let payout = if let Some(w) = winner.clone() {
             if w != m.player1 && Some(w.clone()) != m.player2 {
                 panic!("Invalid winner address");
             }
@@ -143,17 +155,24 @@ impl ChessterEscrow {
 
             token_client.transfer(&env.current_contract_address(), &w, &winner_pay);
             token_client.transfer(&env.current_contract_address(), &coordinator, &admin_fee);
+            winner_pay
         } else {
             // Draw: refund both players
             token_client.transfer(&env.current_contract_address(), &m.player1, &m.wager_amount);
             if let Some(p2) = m.player2.clone() {
                 token_client.transfer(&env.current_contract_address(), &p2, &m.wager_amount);
             }
-        }
+            0
+        };
 
         m.status = MatchStatus::Resolved;
-        m.winner = winner;
+        m.winner = winner.clone();
         env.storage().persistent().set(&game_code, &m);
+
+        env.events().publish(
+            (symbol_short!("resolve"), game_code.clone()),
+            (winner, payout),
+        );
     }
 
     /// Refund after timeout (1 hour)
@@ -182,6 +201,11 @@ impl ChessterEscrow {
 
         m.status = MatchStatus::Refunded;
         env.storage().persistent().set(&game_code, &m);
+
+        env.events().publish(
+            (symbol_short!("refund"), game_code.clone()),
+            m.player1.clone(),
+        );
     }
 
     /// Get match details

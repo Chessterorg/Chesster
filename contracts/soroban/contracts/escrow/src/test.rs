@@ -4,8 +4,8 @@ use super::*;
 use soroban_sdk::token::Client as TokenClient;
 use soroban_sdk::token::StellarAssetClient as TokenAdminClient;
 use soroban_sdk::{
-    testutils::{Address as _, Ledger},
-    Address, Env, String,
+    testutils::{Address as _, Events, Ledger},
+    Address, Env, IntoVal, String,
 };
 
 fn create_token_contract<'a>(e: &Env, admin: &Address) -> (TokenClient<'a>, TokenAdminClient<'a>) {
@@ -49,6 +49,15 @@ fn test_create_and_join_match() {
     assert_eq!(match_data.status, MatchStatus::Pending);
     assert_eq!(match_data.wager_amount, 100);
 
+    assert_eq!(
+        env.events().all().last().unwrap(),
+        (
+            contract_id.clone(),
+            (symbol_short!("create"), game_code.clone()).into_val(&env),
+            (player1.clone(), 100i128).into_val(&env),
+        )
+    );
+
     // Player 2 joins match
     client.join_match(&game_code, &player2);
 
@@ -58,6 +67,15 @@ fn test_create_and_join_match() {
     let match_data = client.get_match(&game_code);
     assert_eq!(match_data.status, MatchStatus::Active);
     assert_eq!(match_data.total_staked, 200);
+
+    assert_eq!(
+        env.events().all().last().unwrap(),
+        (
+            contract_id.clone(),
+            (symbol_short!("join"), game_code.clone()).into_val(&env),
+            player2.clone().into_val(&env),
+        )
+    );
 }
 
 #[test]
@@ -95,6 +113,15 @@ fn test_resolve_match_winner() {
     assert_eq!(token.balance(&player1), 1090);
     assert_eq!(token.balance(&coordinator), 10);
     assert_eq!(token.balance(&contract_id), 0);
+
+    assert_eq!(
+        env.events().all().last().unwrap(),
+        (
+            contract_id.clone(),
+            (symbol_short!("resolve"), game_code.clone()).into_val(&env),
+            (Some(player1.clone()), 190i128).into_val(&env),
+        )
+    );
 }
 
 #[test]
@@ -132,6 +159,16 @@ fn test_resolve_match_draw() {
     assert_eq!(token.balance(&player2), 1000);
     assert_eq!(token.balance(&coordinator), 0);
     assert_eq!(token.balance(&contract_id), 0);
+
+    let expected_winner: Option<Address> = None;
+    assert_eq!(
+        env.events().all().last().unwrap(),
+        (
+            contract_id.clone(),
+            (symbol_short!("resolve"), game_code.clone()).into_val(&env),
+            (expected_winner, 0i128).into_val(&env),
+        )
+    );
 }
 
 #[test]
@@ -177,6 +214,15 @@ fn test_refund_after_timeout() {
     assert_eq!(token.balance(&player1), 1000);
     assert_eq!(token.balance(&player2), 1000);
     assert_eq!(token.balance(&contract_id), 0);
+
+    assert_eq!(
+        env.events().all().last().unwrap(),
+        (
+            contract_id.clone(),
+            (symbol_short!("refund"), game_code.clone()).into_val(&env),
+            player1.clone().into_val(&env),
+        )
+    );
 }
 
 #[test]
