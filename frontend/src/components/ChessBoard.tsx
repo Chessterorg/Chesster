@@ -107,7 +107,6 @@ function WaitingScreen() {
 	const { addToast } = useToastStore();
 	const navigate = useNavigate();
 	const [copied, setCopied] = useState(false);
-	const [confirmLeave, setConfirmLeave] = useState(false);
 
 	// Handle auto-cancellation (game expired after 1 hour with no opponent)
 	useEffect(() => {
@@ -128,31 +127,12 @@ function WaitingScreen() {
 		setTimeout(() => setCopied(false), 1200);
 	};
 
-	const handleLeave = () => {
-		leaveGame();
-		navigate("/");
-	};
-
 	const potDisplay = wagerAmount
 		? `${parseFloat(String(wagerAmount)) * 2} ${tokenLabel(tokenAddress)}`
 		: null;
 
 	return (
 		<div className="h-dvh w-dvw flex flex-col items-center justify-center bg-(--bg) p-4 gap-6">
-			{confirmLeave && (
-				<ConfirmModal
-					title="Leave game?"
-					message={
-						wagerAmount
-							? "Your wager is locked on-chain and will be refunded only after the game expires (1 hour). Are you sure?"
-							: "Are you sure you want to leave while waiting?"
-					}
-					confirmLabel="Leave"
-					onConfirm={handleLeave}
-					onCancel={() => setConfirmLeave(false)}
-				/>
-			)}
-
 			<div className="flex flex-col items-center gap-6 w-full max-w-sm">
 				{/* Animated chess king spinner */}
 				<div className="relative w-20 h-20">
@@ -193,14 +173,6 @@ function WaitingScreen() {
 						</span>
 					</div>
 				)}
-
-				{/* Leave */}
-				<button
-					onClick={() => (wagerAmount ? setConfirmLeave(true) : handleLeave())}
-					className="text-sm text-(--text-tertiary) hover:text-(--text) transition-colors underline underline-offset-2"
-				>
-					Leave game
-				</button>
 			</div>
 		</div>
 	);
